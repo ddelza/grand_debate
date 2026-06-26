@@ -4,8 +4,12 @@
 
 const SS_ID = '1FMsxZkM0wOVvY-CmBqwxYZ7vcfEp8ZxaFnPPzPQgYo0';
 const SHEET_CANDIDATES = ['설문지 응답 시트1', '설문지응답시트1'];
+const HIDDEN_SHEET_NAME = '숨김처리';
 
 const AGENDA_LABELS = ['소통과 존중', '자율과 조율', '배움과 평화'];
+
+// 교사용 숨기기/복원 비밀번호 — 운영 전에 원하는 값으로 바꿔서 재배포하세요.
+const TEACHER_PASSWORD = 'kwangsoo2026';
 
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
@@ -15,13 +19,28 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   }
 
+  const p = (e && e.parameter) || {};
   let data;
   try {
-    if (action === 'getOpinions') data = { opinions: getOpinions() };
-    else if (action === 'debug') data = debugSheetInfo([
-      { id: SS_ID, label: '대토론회', infoSheetCandidates: SHEET_CANDIDATES }
-    ]);
-    else data = { error: 'unknown action: ' + action };
+    if (action === 'getOpinions') {
+      const includeHidden = p.includeHidden === 'true';
+      if (includeHidden) checkPassword_(p.password);
+      data = { opinions: getOpinions(includeHidden) };
+    } else if (action === 'hideOpinion') {
+      checkPassword_(p.password);
+      setHidden_(p.id, true);
+      data = { ok: true };
+    } else if (action === 'unhideOpinion') {
+      checkPassword_(p.password);
+      setHidden_(p.id, false);
+      data = { ok: true };
+    } else if (action === 'debug') {
+      data = debugSheetInfo([
+        { id: SS_ID, label: '대토론회', infoSheetCandidates: SHEET_CANDIDATES }
+      ]);
+    } else {
+      data = { error: 'unknown action: ' + action };
+    }
   } catch (err) {
     data = { error: err.toString() };
   }
@@ -30,16 +49,39 @@ function doGet(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function getOpinions() {
+// google.script.run 호출용 래퍼 (Apps Script 자체 웹뷰에서 열렸을 때)
+function hideOpinion_(id, password) {
+  checkPassword_(password);
+  setHidden_(id, true);
+  return { ok: true };
+}
+
+function unhideOpinion_(id, password) {
+  checkPassword_(password);
+  setHidden_(id, false);
+  return { ok: true };
+}
+
+function checkPassword_(pw) {
+  if (String(pw || '') !== TEACHER_PASSWORD) {
+    throw new Error('비밀번호가 일치하지 않습니다.');
+  }
+}
+
+function getOpinions(includeHidden) {
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = findSheet(ss, SHEET_CANDIDATES);
   if (!sheet) return [];
+
+  const hiddenSet = getHiddenSet_(ss);
 
   const data = sheet.getDataRange().getValues();
   const rows = data.slice(1);
   const result = [];
 
-  rows.forEach(row => {
+  rows.forEach((row, i) => {
+    const rowNumber = i + 2; // 시트 상의 실제 행 번호 (헤더가 1행)
+
     const subjectRaw = norm(row[2] || ''); // C열
     let subject = '';
     if (subjectRaw.includes('보호자')) subject = '학부모';
@@ -62,12 +104,19 @@ function getOpinions() {
       name = row[15];           // P열
     }
 
-    const timestamp = row[0] ? String(row[0]) : '';
+    const tsDate = row[0] instanceof Date ? row[0] : null;
+    const timestamp = tsDate ? Utilities.formatDate(tsDate, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss') : String(row[0] || '');
+    const timestampMs = tsDate ? tsDate.getTime() : 0;
 
     contents.forEach((c, idx) => {
       const text = String(c || '').trim();
       if (!text) return;
+      const id = rowNumber + '-' + (idx + 1);
+      const isHidden = hiddenSet.has(id);
+      if (isHidden && !includeHidden) return;
+
       result.push({
+        id: id,
         subject: subject,
         grade: String(grade || '').trim(),
         name: String(name || '').trim(),
@@ -75,12 +124,61 @@ function getOpinions() {
         agendaIndex: idx + 1,
         agendaLabel: AGENDA_LABELS[idx],
         content: text,
-        timestamp: timestamp
+        timestamp: timestamp,
+        timestampMs: timestampMs,
+        hidden: isHidden
       });
     });
   });
 
   return result;
+}
+
+// =============================================
+// 숨김 상태 저장 ('숨김처리' 탭, 설문지 응답 시트는 건드리지 않음)
+// =============================================
+
+function getHiddenSheet_(ss) {
+  let sheet = ss.getSheetByName(HIDDEN_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(HIDDEN_SHEET_NAME);
+    sheet.getRange(1, 1, 1, 2).setValues([['id', 'hiddenAt']]);
+  }
+  return sheet;
+}
+
+function getHiddenSet_(ss) {
+  const sheet = ss.getSheetByName(HIDDEN_SHEET_NAME);
+  if (!sheet) return new Set();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return new Set();
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(r => String(r[0]));
+  return new Set(ids);
+}
+
+function setHidden_(id, hide) {
+  if (!id) throw new Error('id가 필요합니다.');
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const sheet = getHiddenSheet_(ss);
+  const lastRow = sheet.getLastRow();
+  let foundRow = -1;
+
+  if (lastRow >= 2) {
+    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(id)) { foundRow = i + 2; break; }
+    }
+  }
+
+  if (hide) {
+    if (foundRow === -1) {
+      sheet.appendRow([id, new Date()]);
+    }
+  } else {
+    if (foundRow !== -1) {
+      sheet.deleteRow(foundRow);
+    }
+  }
 }
 
 // =============================================

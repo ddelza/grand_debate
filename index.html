@@ -128,6 +128,18 @@
   }
   .download-btn:hover { background: #f1f2f4; }
 
+  .admin-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .admin-btn.on { background: #2c2f33; color: #fff; border-color: #2c2f33; }
+  .admin-btn:hover { opacity: 0.9; }
+
   .content {
     max-width: 760px;
     margin: 0 auto;
@@ -145,11 +157,36 @@
   .card.agenda-1 { background: #eef5ff; border-left-color: #9ec5f2; }
   .card.agenda-2 { background: #fff3e9; border-left-color: #f3bd8e; }
   .card.agenda-3 { background: #eafaf1; border-left-color: #97d6ae; }
+  .card.is-hidden { opacity: 0.5; background: #f0f0f0; border-left-color: #c7c9cc; }
   .card-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 6px;
+    gap: 8px;
+  }
+  .card-head-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hide-toggle-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 0.7rem;
+    cursor: pointer;
+  }
+  .hide-toggle-btn:hover { background: #f1f2f4; }
+  .hidden-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    background: #9aa0a8;
+    border-radius: 999px;
+    padding: 2px 8px;
   }
   .badge {
     font-size: 0.72rem;
@@ -232,6 +269,7 @@
     </select>
     <button class="sort-dir-btn" id="sortDirBtn" title="정렬 방향 전환">↓</button>
     <button class="download-btn" id="downloadBtn">⬇ 엑셀로 다운로드</button>
+    <button class="admin-btn" id="adminBtn">🔒 관리자 모드</button>
   </span>
 </div>
 
@@ -246,7 +284,9 @@ function callApi(action, params) {
   return new Promise((resolve, reject) => {
     if (typeof google !== 'undefined' && google.script && google.script.run) {
       const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
-      if (action === 'getOpinions') runner.getOpinions();
+      if (action === 'getOpinions') runner.getOpinions(params && params.includeHidden === 'true');
+      else if (action === 'hideOpinion') runner.hideOpinion_(params.id, params.password);
+      else if (action === 'unhideOpinion') runner.unhideOpinion_(params.id, params.password);
       else reject(new Error('callApi: unhandled action — ' + action));
     } else {
       const url = new URL(APPS_SCRIPT_URL);
@@ -266,6 +306,8 @@ let currentAgenda = 0; // 0 = 전체
 let sortKey = 'timestamp'; // 'timestamp' | 'length'
 let sortDir = 'desc'; // 'asc' | 'desc'
 let currentList = [];
+let adminMode = false;
+let adminPw = '';
 
 function render() {
   const content = document.getElementById('content');
@@ -280,8 +322,10 @@ function render() {
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
-  currentList = list;
-  summaryText.textContent = `${currentSubject} 의견 ${list.length}건`;
+  currentList = list.filter(o => !o.hidden);
+  const hiddenCount = list.filter(o => o.hidden).length;
+  summaryText.textContent = `${currentSubject} 의견 ${currentList.length}건` +
+    (adminMode && hiddenCount ? ` (숨김 ${hiddenCount}건 포함 표시 중)` : '');
 
   if (list.length === 0) {
     content.innerHTML = '<div class="empty-msg">해당하는 의견이 없습니다.</div>';
@@ -298,11 +342,20 @@ function render() {
     }
     const hasMeta = metaParts.length > 0;
 
+    const adminControl = adminMode
+      ? (o.hidden
+          ? `<span class="hidden-tag">숨김</span><button class="hide-toggle-btn" onclick="restoreOpinion('${o.id}')">복원</button>`
+          : `<button class="hide-toggle-btn" onclick="hideOpinionClick('${o.id}')">숨기기</button>`)
+      : '';
+
     return `
-      <div class="card agenda-${o.agendaIndex}">
+      <div class="card agenda-${o.agendaIndex} ${o.hidden ? 'is-hidden' : ''}">
         <div class="card-head">
           <span class="badge ${o.subject}">${o.subject}</span>
-          <span class="agenda-tag">[세부의제 ${o.agendaIndex}] ${o.agendaLabel}</span>
+          <span class="card-head-right">
+            <span class="agenda-tag">[세부의제 ${o.agendaIndex}] ${o.agendaLabel}</span>
+            ${adminControl}
+          </span>
         </div>
         <div class="opinion-text">${escapeHtml(o.content)}</div>
         ${hasMeta ? `
@@ -313,6 +366,52 @@ function render() {
     `;
   }).join('');
 }
+
+function loadOpinions() {
+  const params = adminMode ? { includeHidden: 'true', password: adminPw } : {};
+  return callApi('getOpinions', params).then(data => {
+    ALL_OPINIONS = data.opinions || [];
+    render();
+  });
+}
+
+function hideOpinionClick(id) {
+  if (!confirm('이 의견을 숨김 처리할까요?')) return;
+  callApi('hideOpinion', { id, password: adminPw })
+    .then(() => loadOpinions())
+    .catch(err => alert('숨기기 실패: ' + err.message));
+}
+
+function restoreOpinion(id) {
+  callApi('unhideOpinion', { id, password: adminPw })
+    .then(() => loadOpinions())
+    .catch(err => alert('복원 실패: ' + err.message));
+}
+
+document.getElementById('adminBtn').addEventListener('click', () => {
+  const btn = document.getElementById('adminBtn');
+  if (adminMode) {
+    adminMode = false;
+    adminPw = '';
+    sessionStorage.removeItem('gd_admin_pw');
+    btn.classList.remove('on');
+    btn.textContent = '🔒 관리자 모드';
+    loadOpinions();
+    return;
+  }
+  const saved = sessionStorage.getItem('gd_admin_pw');
+  const pw = saved || prompt('교사용 비밀번호를 입력하세요:');
+  if (!pw) return;
+  callApi('getOpinions', { includeHidden: 'true', password: pw }).then(data => {
+    adminMode = true;
+    adminPw = pw;
+    sessionStorage.setItem('gd_admin_pw', pw);
+    btn.classList.add('on');
+    btn.textContent = '🔓 관리자 모드 끄기';
+    ALL_OPINIONS = data.opinions || [];
+    render();
+  }).catch(() => alert('비밀번호가 일치하지 않습니다.'));
+});
 
 function toggleMeta(i) {
   const el = document.getElementById('meta-' + i);
@@ -392,10 +491,7 @@ function downloadCsv() {
 document.querySelector('.tab-btn[data-subject="학생"]').classList.add('active');
 document.querySelector('.filter-btn[data-agenda="0"]').classList.add('active');
 
-callApi('getOpinions').then(data => {
-  ALL_OPINIONS = data.opinions || [];
-  render();
-}).catch(err => {
+loadOpinions().catch(err => {
   document.getElementById('content').innerHTML =
     '<div class="empty-msg">의견을 불러오지 못했습니다.<br>' + err.message + '</div>';
 });
