@@ -160,24 +160,21 @@ function setHidden_(id, hide) {
   if (!id) throw new Error('id가 필요합니다.');
   const ss = SpreadsheetApp.openById(SS_ID);
   const sheet = getHiddenSheet_(ss);
-  const lastRow = sheet.getLastRow();
-  let foundRow = -1;
 
+  // 과거 버그(브라우저 캐시)로 같은 id가 중복으로 쌓인 행이 있을 수 있으므로,
+  // 매번 해당 id의 기존 행을 전부 지운 뒤 필요하면 한 줄만 새로 추가한다.
+  const lastRow = sheet.getLastRow();
   if (lastRow >= 2) {
     const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (let i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]) === String(id)) { foundRow = i + 2; break; }
+    for (let i = ids.length - 1; i >= 0; i--) {
+      if (String(ids[i][0]) === String(id)) {
+        sheet.deleteRow(i + 2);
+      }
     }
   }
 
   if (hide) {
-    if (foundRow === -1) {
-      sheet.appendRow([id, new Date()]);
-    }
-  } else {
-    if (foundRow !== -1) {
-      sheet.deleteRow(foundRow);
-    }
+    sheet.appendRow([id, new Date()]);
   }
 }
 
