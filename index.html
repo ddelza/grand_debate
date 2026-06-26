@@ -298,6 +298,7 @@
     <select id="sortKey">
       <option value="timestamp">최신순</option>
       <option value="length">글자수</option>
+      <option value="hidden" id="sortOptionHidden" style="display:none;">숨긴카드</option>
     </select>
     <button class="sort-dir-btn" id="sortDirBtn" title="정렬 방향 전환">↓</button>
     <button class="download-btn" id="downloadBtn">⬇ 엑셀로 다운로드</button>
@@ -369,8 +370,10 @@ function render() {
   if (currentAgenda !== 0) list = list.filter(o => o.agendaIndex === currentAgenda);
 
   list = list.slice().sort((a, b) => {
-    const av = sortKey === 'length' ? a.content.length : (a.timestampMs || 0);
-    const bv = sortKey === 'length' ? b.content.length : (b.timestampMs || 0);
+    let av, bv;
+    if (sortKey === 'length') { av = a.content.length; bv = b.content.length; }
+    else if (sortKey === 'hidden') { av = a.hidden ? 1 : 0; bv = b.hidden ? 1 : 0; }
+    else { av = a.timestampMs || 0; bv = b.timestampMs || 0; }
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
@@ -453,6 +456,11 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     btn.classList.remove('on');
     btn.textContent = '🔒 관리자 모드';
     manualBtn.style.display = 'none';
+    document.getElementById('sortOptionHidden').style.display = 'none';
+    if (sortKey === 'hidden') {
+      sortKey = 'timestamp';
+      document.getElementById('sortKey').value = 'timestamp';
+    }
     loadOpinions();
     return;
   }
@@ -466,6 +474,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     btn.classList.add('on');
     btn.textContent = '🔓 관리자 모드 끄기';
     manualBtn.style.display = 'inline-block';
+    document.getElementById('sortOptionHidden').style.display = 'inline';
     ALL_OPINIONS = data.opinions || [];
     render();
     showToast(MANUAL_TEXT);
