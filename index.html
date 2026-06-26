@@ -360,6 +360,12 @@ function showToast(message, duration = 5000) {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 450);
   }, duration);
+  return toast;
+}
+
+function hideToastNow() {
+  const toast = document.getElementById('toast');
+  if (toast) toast.remove();
 }
 
 function render() {
@@ -426,23 +432,32 @@ function render() {
 
 function loadOpinions() {
   const params = adminMode ? { includeHidden: 'true', password: adminPw } : {};
+  showToast('의견 로딩중...', 30000);
   return callApi('getOpinions', params).then(data => {
     ALL_OPINIONS = data.opinions || [];
     render();
+    hideToastNow();
+  }).catch(err => {
+    hideToastNow();
+    throw err;
   });
 }
 
 function hideOpinionClick(id) {
   if (!confirm('이 의견을 숨김 처리할까요?')) return;
+  showToast('1건 숨김처리 로딩중...', 30000);
   callApi('hideOpinion', { id, password: adminPw })
     .then(() => loadOpinions())
-    .catch(err => alert('숨기기 실패: ' + err.message));
+    .then(() => showToast('1건을 숨김 처리했습니다.', 2000))
+    .catch(err => { hideToastNow(); alert('숨기기 실패: ' + err.message); });
 }
 
 function restoreOpinion(id) {
+  showToast('1건 복원처리 로딩중...', 30000);
   callApi('unhideOpinion', { id, password: adminPw })
     .then(() => loadOpinions())
-    .catch(err => alert('복원 실패: ' + err.message));
+    .then(() => showToast('1건을 복원했습니다.', 2000))
+    .catch(err => { hideToastNow(); alert('복원 실패: ' + err.message); });
 }
 
 document.getElementById('adminBtn').addEventListener('click', () => {
@@ -467,6 +482,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
   const saved = sessionStorage.getItem('gd_admin_pw');
   const pw = saved || prompt('교사용 비밀번호를 입력하세요:');
   if (!pw) return;
+  showToast('관리자 모드 진입 로딩중...', 30000);
   callApi('getOpinions', { includeHidden: 'true', password: pw }).then(data => {
     adminMode = true;
     adminPw = pw;
@@ -478,7 +494,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     ALL_OPINIONS = data.opinions || [];
     render();
     showToast(MANUAL_TEXT);
-  }).catch(() => alert('비밀번호가 일치하지 않습니다.'));
+  }).catch(() => { hideToastNow(); alert('비밀번호가 일치하지 않습니다.'); });
 });
 
 document.getElementById('manualBtn').addEventListener('click', () => showToast(MANUAL_TEXT, 7000));
