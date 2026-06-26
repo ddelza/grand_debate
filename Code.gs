@@ -9,7 +9,7 @@ const HIDDEN_SHEET_NAME = '숨김처리';
 const AGENDA_LABELS = ['소통과 존중', '자율과 조율', '배움과 평화'];
 
 // 교사용 숨기기/복원 비밀번호 — 운영 전에 원하는 값으로 바꿔서 재배포하세요.
-const TEACHER_PASSWORD = 'kwangsoo2026';
+const TEACHER_PASSWORD = '7683101';
 
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
