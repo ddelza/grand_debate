@@ -86,7 +86,47 @@
     padding: 10px 16px 0;
     font-size: 0.8rem;
     color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
   }
+
+  .sort-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .sort-controls select {
+    font-size: 0.78rem;
+    padding: 5px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+  }
+  .sort-dir-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 9px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .sort-dir-btn:hover { background: #f1f2f4; }
+
+  .download-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .download-btn:hover { background: #f1f2f4; }
 
   .content {
     max-width: 760px;
@@ -97,10 +137,14 @@
   .card {
     background: var(--card);
     border: 1px solid var(--border);
+    border-left: 5px solid var(--border);
     border-radius: 12px;
     padding: 14px 16px;
     margin-bottom: 10px;
   }
+  .card.agenda-1 { background: #eef5ff; border-left-color: #9ec5f2; }
+  .card.agenda-2 { background: #fff3e9; border-left-color: #f3bd8e; }
+  .card.agenda-3 { background: #eafaf1; border-left-color: #97d6ae; }
   .card-head {
     display: flex;
     justify-content: space-between;
@@ -179,7 +223,17 @@
   <button class="filter-btn" data-agenda="3">배움과 평화</button>
 </div>
 
-<div class="summary" id="summary"></div>
+<div class="summary">
+  <span id="summaryText"></span>
+  <span class="sort-controls">
+    <select id="sortKey">
+      <option value="timestamp">최신순</option>
+      <option value="length">글자수</option>
+    </select>
+    <button class="sort-dir-btn" id="sortDirBtn" title="정렬 방향 전환">↓</button>
+    <button class="download-btn" id="downloadBtn">⬇ 엑셀로 다운로드</button>
+  </span>
+</div>
 
 <div class="content" id="content">
   <div class="loading">의견을 불러오는 중...</div>
@@ -209,15 +263,25 @@ function callApi(action, params) {
 let ALL_OPINIONS = [];
 let currentSubject = '학생';
 let currentAgenda = 0; // 0 = 전체
+let sortKey = 'timestamp'; // 'timestamp' | 'length'
+let sortDir = 'desc'; // 'asc' | 'desc'
+let currentList = [];
 
 function render() {
   const content = document.getElementById('content');
-  const summary = document.getElementById('summary');
+  const summaryText = document.getElementById('summaryText');
 
   let list = ALL_OPINIONS.filter(o => o.subject === currentSubject);
   if (currentAgenda !== 0) list = list.filter(o => o.agendaIndex === currentAgenda);
 
-  summary.textContent = `${currentSubject} 의견 ${list.length}건`;
+  list = list.slice().sort((a, b) => {
+    const av = sortKey === 'length' ? a.content.length : (a.timestampMs || 0);
+    const bv = sortKey === 'length' ? b.content.length : (b.timestampMs || 0);
+    return sortDir === 'asc' ? av - bv : bv - av;
+  });
+
+  currentList = list;
+  summaryText.textContent = `${currentSubject} 의견 ${list.length}건`;
 
   if (list.length === 0) {
     content.innerHTML = '<div class="empty-msg">해당하는 의견이 없습니다.</div>';
@@ -235,7 +299,7 @@ function render() {
     const hasMeta = metaParts.length > 0;
 
     return `
-      <div class="card">
+      <div class="card agenda-${o.agendaIndex}">
         <div class="card-head">
           <span class="badge ${o.subject}">${o.subject}</span>
           <span class="agenda-tag">[세부의제 ${o.agendaIndex}] ${o.agendaLabel}</span>
@@ -278,6 +342,51 @@ document.getElementById('filters').addEventListener('click', e => {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
   render();
 });
+
+document.getElementById('sortKey').addEventListener('change', e => {
+  sortKey = e.target.value;
+  render();
+});
+
+document.getElementById('sortDirBtn').addEventListener('click', () => {
+  sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  document.getElementById('sortDirBtn').textContent = sortDir === 'asc' ? '↑' : '↓';
+  render();
+});
+
+document.getElementById('downloadBtn').addEventListener('click', downloadCsv);
+
+function csvCell(v) {
+  const s = String(v == null ? '' : v).replace(/\r?\n/g, ' ');
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function downloadCsv() {
+  if (!currentList.length) { alert('다운로드할 의견이 없습니다.'); return; }
+
+  const headers = ['주체', '세부의제', '의견 내용', '학년/자녀학년', '참석여부', '작성자', '응답시각'];
+  const rows = currentList.map(o => [
+    o.subject,
+    `[세부의제 ${o.agendaIndex}] ${o.agendaLabel}`,
+    o.content,
+    o.grade || '',
+    o.attend || '',
+    o.name || '',
+    o.timestamp || ''
+  ]);
+
+  const csv = [headers, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const fname = `대토론회_의견_${currentSubject}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // 초기 활성 탭/필터 표시
 document.querySelector('.tab-btn[data-subject="학생"]').classList.add('active');
