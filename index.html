@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026 대토론회 의견 모음</title>
+<style>
+  :root {
+    --student: #4a90d9;
+    --parent: #e0884a;
+    --teacher: #5fa777;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #2c2f33;
+    --muted: #8a8f98;
+    --border: #e4e7eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: #2c2f33;
+    color: #fff;
+    padding: 20px 16px 14px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 4px; font-size: 1.25rem; }
+  header p { margin: 0; font-size: 0.8rem; color: #b7bbc1; }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: 12px 12px 0;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 4px;
+    border: none;
+    border-radius: 10px 10px 0 0;
+    background: #e9ebee;
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab-btn.active { background: var(--card); color: var(--text); }
+  .tab-btn[data-subject="학생"].active { border-bottom: 3px solid var(--student); color: var(--student); }
+  .tab-btn[data-subject="학부모"].active { border-bottom: 3px solid var(--parent); color: var(--parent); }
+  .tab-btn[data-subject="교사"].active { border-bottom: 3px solid var(--teacher); color: var(--teacher); }
+
+  .filters {
+    max-width: 760px;
+    margin: 0 auto;
+    background: var(--card);
+    padding: 12px 12px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-btn {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--muted);
+    font-size: 0.82rem;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+  .filter-btn.active {
+    background: var(--text);
+    color: #fff;
+    border-color: var(--text);
+  }
+
+  .summary {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 10px 16px 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .content {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 12px 12px 60px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    color: #fff;
+  }
+  .badge.학생 { background: var(--student); }
+  .badge.학부모 { background: var(--parent); }
+  .badge.교사 { background: var(--teacher); }
+
+  .agenda-tag {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .opinion-text {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .meta-toggle {
+    margin-top: 8px;
+    font-size: 0.74rem;
+    color: #aab0b8;
+    cursor: pointer;
+    user-select: none;
+    display: inline-block;
+  }
+  .meta-toggle:hover { color: var(--muted); }
+  .meta-info {
+    display: none;
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: #f1f2f4;
+    border-radius: 8px;
+    padding: 6px 10px;
+  }
+  .meta-info.show { display: block; }
+
+  .empty-msg {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 0;
+    font-size: 0.9rem;
+  }
+  .loading { text-align: center; padding: 40px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>2026학년도 대토론회 학교 공통의제</h1>
+  <p>학생 · 학부모 · 교사 의견 모음</p>
+</header>
+
+<div class="tabs" id="tabs">
+  <button class="tab-btn" data-subject="학생">학생</button>
+  <button class="tab-btn" data-subject="학부모">학부모</button>
+  <button class="tab-btn" data-subject="교사">교사</button>
+</div>
+
+<div class="filters" id="filters">
+  <button class="filter-btn" data-agenda="0">전체</button>
+  <button class="filter-btn" data-agenda="1">소통과 존중</button>
+  <button class="filter-btn" data-agenda="2">자율과 조율</button>
+  <button class="filter-btn" data-agenda="3">배움과 평화</button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="content" id="content">
+  <div class="loading">의견을 불러오는 중...</div>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'APPS_SCRIPT_URL_PLACEHOLDER';
+
+function callApi(action, params) {
+  return new Promise((resolve, reject) => {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      if (action === 'getOpinions') runner.getOpinions();
+      else reject(new Error('callApi: unhandled action — ' + action));
+    } else {
+      const url = new URL(APPS_SCRIPT_URL);
+      url.searchParams.set('action', action);
+      if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      fetch(url.toString())
+        .then(r => r.json())
+        .then(d => { if (d && d.error) reject(new Error(d.error)); else resolve(d); })
+        .catch(reject);
+    }
+  });
+}
+
+let ALL_OPINIONS = [];
+let currentSubject = '학생';
+let currentAgenda = 0; // 0 = 전체
+
+function render() {
+  const content = document.getElementById('content');
+  const summary = document.getElementById('summary');
+
+  let list = ALL_OPINIONS.filter(o => o.subject === currentSubject);
+  if (currentAgenda !== 0) list = list.filter(o => o.agendaIndex === currentAgenda);
+
+  summary.textContent = `${currentSubject} 의견 ${list.length}건`;
+
+  if (list.length === 0) {
+    content.innerHTML = '<div class="empty-msg">해당하는 의견이 없습니다.</div>';
+    return;
+  }
+
+  content.innerHTML = list.map((o, i) => {
+    const metaParts = [];
+    if (o.subject === '학생' && o.grade) metaParts.push(`${o.grade}학년`);
+    if (o.subject === '학부모') {
+      if (o.grade) metaParts.push(`자녀 학년: ${o.grade}`);
+      if (o.attend) metaParts.push(`대토론회 참석: ${o.attend}`);
+      if (o.name) metaParts.push(`작성자: ${o.name}`);
+    }
+    const hasMeta = metaParts.length > 0;
+
+    return `
+      <div class="card">
+        <div class="card-head">
+          <span class="badge ${o.subject}">${o.subject}</span>
+          <span class="agenda-tag">[세부의제 ${o.agendaIndex}] ${o.agendaLabel}</span>
+        </div>
+        <div class="opinion-text">${escapeHtml(o.content)}</div>
+        ${hasMeta ? `
+          <span class="meta-toggle" onclick="toggleMeta(${i})">▸ 응답자 정보 보기</span>
+          <div class="meta-info" id="meta-${i}">${metaParts.join(' · ')}</div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleMeta(i) {
+  const el = document.getElementById('meta-' + i);
+  el.classList.toggle('show');
+  const toggle = el.previousElementSibling;
+  toggle.textContent = el.classList.contains('show') ? '▾ 응답자 정보 숨기기' : '▸ 응답자 정보 보기';
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('tabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  currentSubject = btn.dataset.subject;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+  render();
+});
+
+document.getElementById('filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  currentAgenda = parseInt(btn.dataset.agenda, 10);
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  render();
+});
+
+// 초기 활성 탭/필터 표시
+document.querySelector('.tab-btn[data-subject="학생"]').classList.add('active');
+document.querySelector('.filter-btn[data-agenda="0"]').classList.add('active');
+
+callApi('getOpinions').then(data => {
+  ALL_OPINIONS = data.opinions || [];
+  render();
+}).catch(err => {
+  document.getElementById('content').innerHTML =
+    '<div class="empty-msg">의견을 불러오지 못했습니다.<br>' + err.message + '</div>';
+});
+</script>
+
+</body>
+</html>
