@@ -326,7 +326,8 @@ function callApi(action, params) {
       const url = new URL(APPS_SCRIPT_URL);
       url.searchParams.set('action', action);
       if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-      fetch(url.toString())
+      url.searchParams.set('_t', Date.now()); // 캐시 버스터 — 매 요청마다 새 URL이 되도록 강제
+      fetch(url.toString(), { cache: 'no-store' })
         .then(r => r.json())
         .then(d => { if (d && d.error) reject(new Error(d.error)); else resolve(d); })
         .catch(reject);
