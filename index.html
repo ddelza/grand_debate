@@ -485,15 +485,27 @@ document.getElementById('manualBtn').addEventListener('click', () => showToast(M
 
 document.getElementById('content').addEventListener('click', e => {
   if (!adminMode) return;
-  if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.target.closest('button')) return; // 숨기기/복원 버튼 클릭은 선택과 분리
+  if (e.target.closest('.meta-toggle')) return; // 응답자 정보 펼치기와 분리
   const card = e.target.closest('.card');
   if (!card) return;
-  if (e.target.closest('button')) return; // 숨기기/복원 버튼 클릭은 선택과 분리
   e.preventDefault();
   const id = card.dataset.id;
-  if (selectedIds.has(id)) selectedIds.delete(id);
-  else selectedIds.add(id);
-  card.classList.toggle('is-selected', selectedIds.has(id));
+
+  if (e.ctrlKey || e.metaKey) {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+    card.classList.toggle('is-selected', selectedIds.has(id));
+  } else if (selectedIds.size === 1 && selectedIds.has(id)) {
+    // 단독 선택된 카드를 다시 클릭하면 선택 해제
+    selectedIds.clear();
+    card.classList.remove('is-selected');
+  } else {
+    selectedIds.clear();
+    selectedIds.add(id);
+    document.querySelectorAll('.card.is-selected').forEach(c => c.classList.remove('is-selected'));
+    card.classList.add('is-selected');
+  }
 });
 
 document.addEventListener('keydown', e => {
@@ -514,6 +526,8 @@ function bulkSetHidden(hide) {
   const ids = Array.from(selectedIds);
   if (!ids.length) return;
   const action = hide ? 'hideOpinion' : 'unhideOpinion';
+  const verb = hide ? '숨김처리' : '복원처리';
+  showToast(`${ids.length}건 ${verb} 로딩중...`, 30000);
   Promise.all(ids.map(id => callApi(action, { id, password: adminPw })))
     .then(() => {
       selectedIds.clear();
