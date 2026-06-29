@@ -316,6 +316,13 @@
   </span>
 </div>
 
+<div class="summary" id="bulkAllBar" style="display:none;">
+  <span class="sort-controls">
+    <button class="hide-toggle-btn" id="hideAllBtn">⬇ 현재 목록 전체 숨김처리</button>
+    <button class="hide-toggle-btn" id="restoreAllBtn">⬆ 현재 목록 전체 복원처리</button>
+  </span>
+</div>
+
 <div class="content" id="content">
   <div class="loading">의견을 불러오는 중...</div>
 </div>
@@ -351,6 +358,7 @@ let currentGrade = 0; // 0 = 전체 학년 (학생 탭에서만 사용)
 let sortKey = 'timestamp'; // 'timestamp' | 'length'
 let sortDir = 'desc'; // 'asc' | 'desc'
 let currentList = [];
+let filteredAllList = []; // 현재 탭/필터 기준 전체 목록 (숨김 포함) — 전체 숨김/복원 버튼용
 let adminMode = false;
 let adminPw = '';
 let selectedIds = new Set();
@@ -397,6 +405,7 @@ function render() {
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
+  filteredAllList = list;
   currentList = list.filter(o => !o.hidden);
   const hiddenCount = list.filter(o => o.hidden).length;
   summaryText.textContent = `${currentSubject} 의견 ${currentList.length}건` +
@@ -485,6 +494,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     btn.classList.remove('on');
     btn.textContent = '🔒 관리자 모드';
     manualBtn.style.display = 'none';
+    document.getElementById('bulkAllBar').style.display = 'none';
     document.getElementById('sortOptionHidden').style.display = 'none';
     if (sortKey === 'hidden') {
       sortKey = 'timestamp';
@@ -504,6 +514,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     btn.classList.add('on');
     btn.textContent = '🔓 관리자 모드 끄기';
     manualBtn.style.display = 'inline-block';
+    document.getElementById('bulkAllBar').style.display = 'flex';
     document.getElementById('sortOptionHidden').style.display = 'inline';
     ALL_OPINIONS = data.opinions || [];
     render();
@@ -574,21 +585,38 @@ document.addEventListener('keydown', e => {
 });
 
 function bulkSetHidden(hide) {
-  const ids = Array.from(selectedIds);
+  bulkSetHiddenForIds(hide, Array.from(selectedIds), () => { selectedIds.clear(); });
+}
+
+function bulkSetHiddenForIds(hide, ids, onDone) {
   if (!ids.length) return;
   const action = hide ? 'hideOpinion' : 'unhideOpinion';
   const verb = hide ? '숨김처리' : '복원처리';
-  showToast(`${ids.length}건 ${verb} 로딩중...`, 30000);
+  showToast(`${ids.length}건 ${verb} 로딩중...`, 60000);
   // 동시에 여러 요청을 보내면 같은 시트의 행 번호를 두고 경쟁이 생겨
   // 일부가 토글된 것처럼 엉뚱하게 처리될 수 있으므로, 하나씩 순서대로 보낸다.
   ids.reduce((chain, id) => chain.then(() => callApi(action, { id, password: adminPw })), Promise.resolve())
     .then(() => {
-      selectedIds.clear();
+      if (onDone) onDone();
       return loadOpinions();
     })
     .then(() => showToast(`${ids.length}건을 ${hide ? '숨김 처리' : '복원'}했습니다.`, 3000))
-    .catch(err => alert((hide ? '숨기기' : '복원') + ' 실패: ' + err.message));
+    .catch(err => { hideToastNow(); alert((hide ? '숨기기' : '복원') + ' 실패: ' + err.message); });
 }
+
+document.getElementById('hideAllBtn').addEventListener('click', () => {
+  const ids = filteredAllList.filter(o => !o.hidden).map(o => o.id);
+  if (!ids.length) { alert('숨길 항목이 없습니다.'); return; }
+  if (!confirm(`현재 목록의 ${ids.length}건을 전부 숨김 처리할까요?`)) return;
+  bulkSetHiddenForIds(true, ids);
+});
+
+document.getElementById('restoreAllBtn').addEventListener('click', () => {
+  const ids = filteredAllList.filter(o => o.hidden).map(o => o.id);
+  if (!ids.length) { alert('복원할 항목이 없습니다.'); return; }
+  if (!confirm(`현재 목록의 ${ids.length}건을 전부 복원할까요?`)) return;
+  bulkSetHiddenForIds(false, ids);
+});
 
 function toggleMeta(i) {
   const el = document.getElementById('meta-' + i);
