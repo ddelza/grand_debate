@@ -50,6 +50,7 @@
     cursor: pointer;
   }
   .tab-btn.active { background: var(--card); color: var(--text); }
+  .tab-btn[data-subject="전체"].active { border-bottom: 3px solid var(--text); color: var(--text); }
   .tab-btn[data-subject="학생"].active { border-bottom: 3px solid var(--student); color: var(--student); }
   .tab-btn[data-subject="학부모"].active { border-bottom: 3px solid var(--parent); color: var(--parent); }
   .tab-btn[data-subject="교사"].active { border-bottom: 3px solid var(--teacher); color: var(--teacher); }
@@ -280,6 +281,7 @@
 </header>
 
 <div class="tabs" id="tabs">
+  <button class="tab-btn" data-subject="전체">전체</button>
   <button class="tab-btn" data-subject="학생">학생</button>
   <button class="tab-btn" data-subject="학부모">학부모</button>
   <button class="tab-btn" data-subject="교사">교사</button>
@@ -336,7 +338,7 @@ function callApi(action, params) {
 }
 
 let ALL_OPINIONS = [];
-let currentSubject = '학생';
+let currentSubject = '전체';
 let currentAgenda = 0; // 0 = 전체
 let sortKey = 'timestamp'; // 'timestamp' | 'length'
 let sortDir = 'desc'; // 'asc' | 'desc'
@@ -373,7 +375,7 @@ function render() {
   const content = document.getElementById('content');
   const summaryText = document.getElementById('summaryText');
 
-  let list = ALL_OPINIONS.filter(o => o.subject === currentSubject);
+  let list = currentSubject === '전체' ? ALL_OPINIONS.slice() : ALL_OPINIONS.filter(o => o.subject === currentSubject);
   if (currentAgenda !== 0) list = list.filter(o => o.agendaIndex === currentAgenda);
 
   list = list.slice().sort((a, b) => {
@@ -633,7 +635,7 @@ function downloadCsv() {
 }
 
 // 초기 활성 탭/필터 표시
-document.querySelector('.tab-btn[data-subject="학생"]').classList.add('active');
+document.querySelector('.tab-btn[data-subject="전체"]').classList.add('active');
 document.querySelector('.filter-btn[data-agenda="0"]').classList.add('active');
 
 loadOpinions().catch(err => {
