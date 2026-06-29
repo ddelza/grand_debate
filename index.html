@@ -294,6 +294,13 @@
   <button class="filter-btn" data-agenda="3">배움과 평화</button>
 </div>
 
+<div class="filters" id="gradeFilters" style="display:none;">
+  <button class="filter-btn" data-grade="0">전체 학년</button>
+  <button class="filter-btn" data-grade="1">1학년</button>
+  <button class="filter-btn" data-grade="2">2학년</button>
+  <button class="filter-btn" data-grade="3">3학년</button>
+</div>
+
 <div class="summary">
   <span id="summaryText"></span>
   <span class="sort-controls">
@@ -340,6 +347,7 @@ function callApi(action, params) {
 let ALL_OPINIONS = [];
 let currentSubject = '전체';
 let currentAgenda = 0; // 0 = 전체
+let currentGrade = 0; // 0 = 전체 학년 (학생 탭에서만 사용)
 let sortKey = 'timestamp'; // 'timestamp' | 'length'
 let sortDir = 'desc'; // 'asc' | 'desc'
 let currentList = [];
@@ -377,6 +385,9 @@ function render() {
 
   let list = currentSubject === '전체' ? ALL_OPINIONS.slice() : ALL_OPINIONS.filter(o => o.subject === currentSubject);
   if (currentAgenda !== 0) list = list.filter(o => o.agendaIndex === currentAgenda);
+  if (currentSubject === '학생' && currentGrade !== 0) {
+    list = list.filter(o => String(o.grade) === String(currentGrade));
+  }
 
   list = list.slice().sort((a, b) => {
     let av, bv;
@@ -598,6 +609,16 @@ document.getElementById('tabs').addEventListener('click', e => {
   currentSubject = btn.dataset.subject;
   selectedIds.clear(); anchorId = null;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+
+  const gradeFilters = document.getElementById('gradeFilters');
+  if (currentSubject === '학생') {
+    gradeFilters.style.display = 'flex';
+  } else {
+    gradeFilters.style.display = 'none';
+    currentGrade = 0;
+    gradeFilters.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.grade === '0'));
+  }
+
   render();
 });
 
@@ -606,7 +627,16 @@ document.getElementById('filters').addEventListener('click', e => {
   if (!btn) return;
   currentAgenda = parseInt(btn.dataset.agenda, 10);
   selectedIds.clear(); anchorId = null;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  render();
+});
+
+document.getElementById('gradeFilters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  currentGrade = parseInt(btn.dataset.grade, 10);
+  selectedIds.clear(); anchorId = null;
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
   render();
 });
 
@@ -658,6 +688,7 @@ function downloadCsv() {
 // 초기 활성 탭/필터 표시
 document.querySelector('.tab-btn[data-subject="전체"]').classList.add('active');
 document.querySelector('.filter-btn[data-agenda="0"]').classList.add('active');
+document.querySelector('.filter-btn[data-grade="0"]').classList.add('active');
 
 loadOpinions().catch(err => {
   document.getElementById('content').innerHTML =
