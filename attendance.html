@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대토론회 참석 가능여부 조회</title>
+<style>
+  :root {
+    --student: #4a90d9;
+    --parent: #e0884a;
+    --teacher: #5fa777;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #2c2f33;
+    --muted: #8a8f98;
+    --border: #e4e7eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: #2c2f33;
+    color: #fff;
+    padding: 20px 16px 14px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 4px; font-size: 1.2rem; }
+  header p { margin: 0; font-size: 0.8rem; color: #b7bbc1; }
+  .back-link {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: #cdd1d6;
+    text-decoration: none;
+  }
+  .back-link:hover { color: #fff; }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 16px 12px 60px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-card .num { font-size: 1.4rem; font-weight: 700; color: var(--parent); }
+  .stat-card .label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+  }
+  .toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .download-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .download-btn:hover { background: #f1f2f4; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 0.86rem;
+  }
+  thead th {
+    background: #f1f2f4;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .attend-badge {
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    color: #fff;
+  }
+  .attend-badge.yes { background: var(--teacher); }
+  .attend-badge.no { background: #c0464a; }
+  .attend-badge.unknown { background: #9aa0a8; }
+
+  .grade-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    background: #eef2f7;
+    color: var(--text);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin: 1px 2px 1px 0;
+  }
+
+  .empty-msg {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 0;
+    font-size: 0.9rem;
+  }
+  .loading { text-align: center; padding: 40px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>대토론회 참석 가능여부 조회</h1>
+  <p>학부모 응답 기준 통계 및 명단</p>
+  <a class="back-link" href="index.html">← 의견 모음으로 돌아가기</a>
+</header>
+
+<div class="wrap">
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <label>
+      <input type="checkbox" id="answeredOnlyChk">
+      참석여부('네'/'아니오') 응답하신 분만 보기
+    </label>
+    <button class="download-btn" id="downloadAttBtn">⬇ 엑셀로 다운로드</button>
+  </div>
+
+  <div id="tableWrap">
+    <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyuFuQjV3ZbHha75T75v7l2aXSMjMJKRivTPB_4owHqF_NkRvQmuW8ppYzk2u-1ohiN/exec';
+
+function callApi(action, params) {
+  return new Promise((resolve, reject) => {
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      if (action === 'getAttendance') runner.getAttendanceList();
+      else reject(new Error('callApi: unhandled action — ' + action));
+    } else {
+      const url = new URL(APPS_SCRIPT_URL);
+      url.searchParams.set('action', action);
+      if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      url.searchParams.set('_t', Date.now());
+      fetch(url.toString(), { cache: 'no-store' })
+        .then(r => r.json())
+        .then(d => { if (d && d.error) reject(new Error(d.error)); else resolve(d); })
+        .catch(reject);
+    }
+  });
+}
+
+let ALL_RECORDS = [];
+let answeredOnly = false;
+let currentRecords = [];
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function attendClass(attend) {
+  if (attend === '네') return 'yes';
+  if (attend === '아니오') return 'no';
+  return 'unknown';
+}
+
+function render() {
+  const statsEl = document.getElementById('stats');
+  const tableWrap = document.getElementById('tableWrap');
+
+  let list = ALL_RECORDS;
+  if (answeredOnly) list = list.filter(r => r.attend === '네' || r.attend === '아니오');
+  currentRecords = list;
+
+  // 학년별 응답 학부모 수 (다자녀로 여러 학년을 체크한 경우 각 학년에 모두 포함)
+  const gradeCounts = {};
+  list.forEach(r => {
+    (r.grades.length ? r.grades : ['미입력']).forEach(g => {
+      gradeCounts[g] = (gradeCounts[g] || 0) + 1;
+    });
+  });
+  const gradeOrder = Object.keys(gradeCounts).sort((a, b) => {
+    if (a === '미입력') return 1;
+    if (b === '미입력') return -1;
+    return a.localeCompare(b, 'ko', { numeric: true });
+  });
+
+  statsEl.innerHTML =
+    `<div class="stat-card"><div class="num">${list.length}</div><div class="label">전체 응답 학부모</div></div>` +
+    gradeOrder.map(g => `<div class="stat-card"><div class="num">${gradeCounts[g]}</div><div class="label">${g === '미입력' ? '학년 미입력' : g + '학년'}</div></div>`).join('');
+
+  if (list.length === 0) {
+    tableWrap.innerHTML = '<div class="empty-msg">해당하는 응답이 없습니다.</div>';
+    return;
+  }
+
+  tableWrap.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>성함</th><th>참석여부</th><th>자녀 학년</th></tr>
+      </thead>
+      <tbody>
+        ${list.map(r => `
+          <tr>
+            <td>${escapeHtml(r.name)}</td>
+            <td><span class="attend-badge ${attendClass(r.attend)}">${escapeHtml(r.attend || '미응답')}</span></td>
+            <td>${r.grades.length ? r.grades.map(g => `<span class="grade-badge">${escapeHtml(g)}학년</span>`).join('') : '-'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function csvCell(v) {
+  const s = String(v == null ? '' : v).replace(/\r?\n/g, ' ');
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function downloadCsv() {
+  if (!currentRecords.length) { alert('다운로드할 내용이 없습니다.'); return; }
+  const headers = ['성함', '참석여부', '자녀 학년'];
+  const rows = currentRecords.map(r => [r.name, r.attend || '미응답', r.grades.join(', ')]);
+  const csv = [headers, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `대토론회_참석여부_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('answeredOnlyChk').addEventListener('change', e => {
+  answeredOnly = e.target.checked;
+  render();
+});
+
+document.getElementById('downloadAttBtn').addEventListener('click', downloadCsv);
+
+callApi('getAttendance').then(data => {
+  ALL_RECORDS = data.records || [];
+  render();
+}).catch(err => {
+  document.getElementById('tableWrap').innerHTML =
+    '<div class="empty-msg">불러오지 못했습니다.<br>' + err.message + '</div>';
+});
+</script>
+
+</body>
+</html>

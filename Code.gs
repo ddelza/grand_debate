@@ -13,7 +13,13 @@ const TEACHER_PASSWORD = '7683101';
 
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
+  const page = e && e.parameter && e.parameter.page;
   if (!action) {
+    if (page === 'attendance') {
+      return HtmlService.createHtmlOutputFromFile('attendance')
+        .setTitle('대토론회 참석 가능여부 조회')
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
     return HtmlService.createHtmlOutputFromFile('index')
       .setTitle('대토론회 의견 모음')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
@@ -26,6 +32,8 @@ function doGet(e) {
       const includeHidden = p.includeHidden === 'true';
       if (includeHidden) checkPassword_(p.password);
       data = { opinions: getOpinions(includeHidden) };
+    } else if (action === 'getAttendance') {
+      data = { records: getAttendanceList() };
     } else if (action === 'hideOpinion') {
       checkPassword_(p.password);
       setHidden_(p.id, true);
@@ -132,6 +140,39 @@ function getOpinions(includeHidden) {
         timestampMs: timestampMs,
         hidden: isHidden
       });
+    });
+  });
+
+  return result;
+}
+
+// 보호자(학부모) 응답자 단위로 한 행씩 — 대토론회 참석 가능여부 조회용
+function getAttendanceList() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const sheet = findSheet(ss, SHEET_CANDIDATES);
+  if (!sheet) return [];
+
+  const data = sheet.getDataRange().getValues();
+  const rows = data.slice(1);
+  const result = [];
+
+  rows.forEach(row => {
+    const subjectRaw = norm(row[2] || ''); // C열
+    if (!subjectRaw.includes('보호자')) return;
+
+    const gradeRaw = String(row[10] || '').trim();   // K열 (자녀 학년, 중복 선택 가능: "2, 3" 등)
+    const attend = String(row[14] || '').trim();      // O열
+    const nameRaw = String(row[15] || '').trim();     // P열
+
+    const grades = gradeRaw
+      .split(/[,，\/]/)
+      .map(g => g.trim())
+      .filter(g => g);
+
+    result.push({
+      name: nameRaw ? nameRaw : '익명',
+      attend: attend,
+      grades: grades
     });
   });
 
