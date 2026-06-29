@@ -153,10 +153,16 @@
   <div class="stats" id="stats"></div>
 
   <div class="toolbar">
-    <label>
-      <input type="checkbox" id="answeredOnlyChk">
-      참석여부('네'/'아니오') 응답하신 분만 보기
-    </label>
+    <span style="display:flex; gap:14px; flex-wrap:wrap;">
+      <label>
+        <input type="checkbox" id="attendYesChk">
+        '네' 응답만 보기
+      </label>
+      <label>
+        <input type="checkbox" id="attendNoChk">
+        '아니오' 응답만 보기
+      </label>
+    </span>
     <button class="download-btn" id="downloadAttBtn">⬇ 엑셀로 다운로드</button>
   </div>
 
@@ -188,7 +194,8 @@ function callApi(action, params) {
 }
 
 let ALL_RECORDS = [];
-let answeredOnly = false;
+let attendYesOnly = false;
+let attendNoOnly = false;
 let currentRecords = [];
 
 function escapeHtml(str) {
@@ -208,8 +215,16 @@ function render() {
   const tableWrap = document.getElementById('tableWrap');
 
   let list = ALL_RECORDS;
-  if (answeredOnly) list = list.filter(r => r.attend === '네' || r.attend === '아니오');
+  if (attendYesOnly && attendNoOnly) {
+    list = list.filter(r => r.attend === '네' || r.attend === '아니오');
+  } else if (attendYesOnly) {
+    list = list.filter(r => r.attend === '네');
+  } else if (attendNoOnly) {
+    list = list.filter(r => r.attend === '아니오');
+  }
   currentRecords = list;
+
+  const yesCount = list.filter(r => r.attend === '네').length;
 
   // 학년별 응답 학부모 수 (다자녀로 여러 학년을 체크한 경우 각 학년에 모두 포함)
   const gradeCounts = {};
@@ -226,7 +241,8 @@ function render() {
 
   statsEl.innerHTML =
     `<div class="stat-card"><div class="num">${list.length}</div><div class="label">전체 응답 학부모</div></div>` +
-    gradeOrder.map(g => `<div class="stat-card"><div class="num">${gradeCounts[g]}</div><div class="label">${g === '미입력' ? '학년 미입력' : g + '학년'}</div></div>`).join('');
+    gradeOrder.map(g => `<div class="stat-card"><div class="num">${gradeCounts[g]}</div><div class="label">${g === '미입력' ? '학년 미입력' : g + '학년'}</div></div>`).join('') +
+    `<div class="stat-card"><div class="num" style="color: var(--teacher);">${yesCount}</div><div class="label">참석 가능('네') 학부모</div></div>`;
 
   if (list.length === 0) {
     tableWrap.innerHTML = '<div class="empty-msg">해당하는 응답이 없습니다.</div>';
@@ -272,8 +288,13 @@ function downloadCsv() {
   URL.revokeObjectURL(url);
 }
 
-document.getElementById('answeredOnlyChk').addEventListener('change', e => {
-  answeredOnly = e.target.checked;
+document.getElementById('attendYesChk').addEventListener('change', e => {
+  attendYesOnly = e.target.checked;
+  render();
+});
+
+document.getElementById('attendNoChk').addEventListener('change', e => {
+  attendNoOnly = e.target.checked;
   render();
 });
 
