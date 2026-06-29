@@ -34,6 +34,10 @@ function doGet(e) {
       checkPassword_(p.password);
       setHidden_(p.id, false);
       data = { ok: true };
+    } else if (action === 'resetHidden') {
+      checkPassword_(p.password);
+      resetHidden_();
+      data = { ok: true };
     } else if (action === 'debug') {
       data = debugSheetInfo([
         { id: SS_ID, label: '대토론회', infoSheetCandidates: SHEET_CANDIDATES }
@@ -144,6 +148,9 @@ function getHiddenSheet_(ss) {
     sheet = ss.insertSheet(HIDDEN_SHEET_NAME);
     sheet.getRange(1, 1, 1, 2).setValues([['id', 'hiddenAt']]);
   }
+  // id 칼럼이 "6-1", "7-2" 같은 값을 날짜로 자동 변환해버리는 걸 막기 위해
+  // 항상 일반 텍스트 서식으로 강제한다 (그렇지 않으면 문자열 비교가 깨진다).
+  sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 1).setNumberFormat('@');
   return sheet;
 }
 
@@ -152,7 +159,7 @@ function getHiddenSet_(ss) {
   if (!sheet) return new Set();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return new Set();
-  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().map(r => String(r[0]));
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues().map(r => String(r[0]));
   return new Set(ids);
 }
 
@@ -165,7 +172,7 @@ function setHidden_(id, hide) {
   // 매번 해당 id의 기존 행을 전부 지운 뒤 필요하면 한 줄만 새로 추가한다.
   const lastRow = sheet.getLastRow();
   if (lastRow >= 2) {
-    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
     for (let i = ids.length - 1; i >= 0; i--) {
       if (String(ids[i][0]) === String(id)) {
         sheet.deleteRow(i + 2);
@@ -174,7 +181,19 @@ function setHidden_(id, hide) {
   }
 
   if (hide) {
-    sheet.appendRow([id, new Date()]);
+    const newRow = sheet.getLastRow() + 1;
+    sheet.getRange(newRow, 1).setNumberFormat('@').setValue(id);
+    sheet.getRange(newRow, 2).setValue(new Date());
+  }
+}
+
+// 관리자용: 누적된 숨김 기록을 전부 비운다 (설문 응답 시트는 영향 없음).
+function resetHidden_() {
+  const ss = SpreadsheetApp.openById(SS_ID);
+  const sheet = getHiddenSheet_(ss);
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    sheet.getRange(2, 1, lastRow - 1, 2).clearContent();
   }
 }
 
