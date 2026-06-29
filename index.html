@@ -469,7 +469,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
   if (adminMode) {
     adminMode = false;
     adminPw = '';
-    selectedIds.clear();
+    selectedIds.clear(); anchorId = null;
     sessionStorage.removeItem('gd_admin_pw');
     btn.classList.remove('on');
     btn.textContent = '🔒 관리자 모드';
@@ -502,6 +502,8 @@ document.getElementById('adminBtn').addEventListener('click', () => {
 
 document.getElementById('manualBtn').addEventListener('click', () => showToast(MANUAL_TEXT, 7000));
 
+let anchorId = null; // Shift+클릭 범위 선택의 시작점
+
 document.getElementById('content').addEventListener('click', e => {
   if (!adminMode) return;
   if (e.target.closest('button')) return; // 숨기기/복원 버튼 클릭은 선택과 분리
@@ -511,19 +513,38 @@ document.getElementById('content').addEventListener('click', e => {
   e.preventDefault();
   const id = card.dataset.id;
 
+  if (e.shiftKey && anchorId) {
+    const cards = Array.from(document.querySelectorAll('#content .card'));
+    const fromIdx = cards.findIndex(c => c.dataset.id === anchorId);
+    const toIdx = cards.findIndex(c => c.dataset.id === id);
+    if (fromIdx !== -1 && toIdx !== -1) {
+      const [start, end] = fromIdx <= toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
+      selectedIds.clear();
+      cards.forEach((c, i) => {
+        const inRange = i >= start && i <= end;
+        c.classList.toggle('is-selected', inRange);
+        if (inRange) selectedIds.add(c.dataset.id);
+      });
+      return; // anchorId는 유지 — 같은 시작점에서 범위를 다시 조정할 수 있게
+    }
+  }
+
   if (e.ctrlKey || e.metaKey) {
     if (selectedIds.has(id)) selectedIds.delete(id);
     else selectedIds.add(id);
     card.classList.toggle('is-selected', selectedIds.has(id));
+    anchorId = id;
   } else if (selectedIds.size === 1 && selectedIds.has(id)) {
     // 단독 선택된 카드를 다시 클릭하면 선택 해제
     selectedIds.clear();
     card.classList.remove('is-selected');
+    anchorId = null;
   } else {
     selectedIds.clear();
     selectedIds.add(id);
     document.querySelectorAll('.card.is-selected').forEach(c => c.classList.remove('is-selected'));
     card.classList.add('is-selected');
+    anchorId = id;
   }
 });
 
@@ -575,7 +596,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('.tab-btn');
   if (!btn) return;
   currentSubject = btn.dataset.subject;
-  selectedIds.clear();
+  selectedIds.clear(); anchorId = null;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
   render();
 });
@@ -584,7 +605,7 @@ document.getElementById('filters').addEventListener('click', e => {
   const btn = e.target.closest('.filter-btn');
   if (!btn) return;
   currentAgenda = parseInt(btn.dataset.agenda, 10);
-  selectedIds.clear();
+  selectedIds.clear(); anchorId = null;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
   render();
 });
