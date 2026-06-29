@@ -545,7 +545,9 @@ function bulkSetHidden(hide) {
   const action = hide ? 'hideOpinion' : 'unhideOpinion';
   const verb = hide ? '숨김처리' : '복원처리';
   showToast(`${ids.length}건 ${verb} 로딩중...`, 30000);
-  Promise.all(ids.map(id => callApi(action, { id, password: adminPw })))
+  // 동시에 여러 요청을 보내면 같은 시트의 행 번호를 두고 경쟁이 생겨
+  // 일부가 토글된 것처럼 엉뚱하게 처리될 수 있으므로, 하나씩 순서대로 보낸다.
+  ids.reduce((chain, id) => chain.then(() => callApi(action, { id, password: adminPw })), Promise.resolve())
     .then(() => {
       selectedIds.clear();
       return loadOpinions();

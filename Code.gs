@@ -165,25 +165,35 @@ function getHiddenSet_(ss) {
 
 function setHidden_(id, hide) {
   if (!id) throw new Error('id가 필요합니다.');
-  const ss = SpreadsheetApp.openById(SS_ID);
-  const sheet = getHiddenSheet_(ss);
 
-  // 과거 버그(브라우저 캐시)로 같은 id가 중복으로 쌓인 행이 있을 수 있으므로,
-  // 매번 해당 id의 기존 행을 전부 지운 뒤 필요하면 한 줄만 새로 추가한다.
-  const lastRow = sheet.getLastRow();
-  if (lastRow >= 2) {
-    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
-    for (let i = ids.length - 1; i >= 0; i--) {
-      if (String(ids[i][0]) === String(id)) {
-        sheet.deleteRow(i + 2);
+  // 다중 선택으로 여러 id를 동시에(병렬 요청으로) 처리할 때, 잠금 없이 같은
+  // 시트의 행 번호를 동시에 읽고 쓰면 서로 덮어써서 엉뚱하게 토글되는 것처럼
+  // 보이는 문제가 있었다. 시트 수정 구간을 잠궈서 한 번에 하나씩만 처리한다.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const ss = SpreadsheetApp.openById(SS_ID);
+    const sheet = getHiddenSheet_(ss);
+
+    // 과거 버그(브라우저 캐시)로 같은 id가 중복으로 쌓인 행이 있을 수 있으므로,
+    // 매번 해당 id의 기존 행을 전부 지운 뒤 필요하면 한 줄만 새로 추가한다.
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      const ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+      for (let i = ids.length - 1; i >= 0; i--) {
+        if (String(ids[i][0]) === String(id)) {
+          sheet.deleteRow(i + 2);
+        }
       }
     }
-  }
 
-  if (hide) {
-    const newRow = sheet.getLastRow() + 1;
-    sheet.getRange(newRow, 1).setNumberFormat('@').setValue(id);
-    sheet.getRange(newRow, 2).setValue(new Date());
+    if (hide) {
+      const newRow = sheet.getLastRow() + 1;
+      sheet.getRange(newRow, 1).setNumberFormat('@').setValue(id);
+      sheet.getRange(newRow, 2).setValue(new Date());
+    }
+  } finally {
+    lock.releaseLock();
   }
 }
 
