@@ -81,6 +81,36 @@
     border-color: var(--text);
   }
 
+  .search-bar {
+    max-width: 760px;
+    margin: 0 auto;
+    background: var(--card);
+    padding: 10px 12px;
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-bar select {
+    font-size: 0.82rem;
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+  }
+  .search-bar input {
+    flex: 1;
+    font-size: 0.85rem;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    min-width: 0;
+  }
+  .search-bar #searchClearBtn {
+    padding: 7px 11px;
+    margin-bottom: 0;
+  }
+
   .summary {
     max-width: 760px;
     margin: 0 auto;
@@ -301,6 +331,15 @@
   <button class="filter-btn" data-grade="3">3학년</button>
 </div>
 
+<div class="search-bar">
+  <select id="searchMode">
+    <option value="contains">포함</option>
+    <option value="exact">일치</option>
+  </select>
+  <input type="text" id="searchInput" placeholder="검색어 입력 (예: 없음)">
+  <button class="filter-btn" id="searchClearBtn" title="검색어 지우기">✕</button>
+</div>
+
 <div class="summary">
   <span id="summaryText"></span>
   <span class="sort-controls">
@@ -355,6 +394,8 @@ let ALL_OPINIONS = [];
 let currentSubject = '전체';
 let currentAgenda = 0; // 0 = 전체
 let currentGrade = 0; // 0 = 전체 학년 (학생 탭에서만 사용)
+let searchQuery = '';
+let searchMode = 'contains'; // 'contains' | 'exact'
 let sortKey = 'timestamp'; // 'timestamp' | 'length'
 let sortDir = 'desc'; // 'asc' | 'desc'
 let currentList = [];
@@ -395,6 +436,13 @@ function render() {
   if (currentAgenda !== 0) list = list.filter(o => o.agendaIndex === currentAgenda);
   if (currentSubject === '학생' && currentGrade !== 0) {
     list = list.filter(o => String(o.grade) === String(currentGrade));
+  }
+  if (searchQuery) {
+    const q = searchQuery.trim();
+    list = list.filter(o => {
+      const content = o.content.trim();
+      return searchMode === 'exact' ? content === q : content.includes(q);
+    });
   }
 
   list = list.slice().sort((a, b) => {
@@ -665,6 +713,25 @@ document.getElementById('gradeFilters').addEventListener('click', e => {
   currentGrade = parseInt(btn.dataset.grade, 10);
   selectedIds.clear(); anchorId = null;
   btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+  render();
+});
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  selectedIds.clear(); anchorId = null;
+  render();
+});
+
+document.getElementById('searchMode').addEventListener('change', e => {
+  searchMode = e.target.value;
+  selectedIds.clear(); anchorId = null;
+  render();
+});
+
+document.getElementById('searchClearBtn').addEventListener('click', () => {
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  selectedIds.clear(); anchorId = null;
   render();
 });
 
